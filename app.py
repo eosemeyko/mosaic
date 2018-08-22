@@ -1,11 +1,8 @@
-# Подключение модулей
 import os
-from tkinter import * # Модуль tkinter - для создания GUI
 from random import choice
-
-# PEP 8
-# Для работы с графикой воспользуемся дополнительной библиотекой - PIL
-# Необходимо установить библиотеку Pillow:  pip install Pillow
+# Для создания GUI
+from tkinter import Tk, Label, Frame, Button, PhotoImage
+# Для работы с изображениями
 from PIL import Image, ImageTk
 
 # Создаём главное окно приложения
@@ -14,20 +11,12 @@ main_window = Tk()
 main_window.title('Мозаика')
 
 ### PARAMS
-SIDE = 4  # <- величина стороны квадрата (для пятнашек квадрат 4х4)
-done_moz_alert = None
-#btn_change_img = None
-record = None # Рекорд по сборке
-labels = [] # Создание и размещение Label-объектов
+SIDE = 4  # <- величина стороны квадрата
+done_moz_alert = None # Сообщение о том что сборка выполнена
+move_count = 0 # Количество перемещений
+move_record = 0 # Рекорд по сборке
+labels = [] # Массив Label-объектов
 ### END PARAMS
-
-# Выводим счетчик справа
-move_lab = Label(main_window, width=7, text='0\nMOVE')
-move_lab.grid(row=0, column=4, padx=10)
-
-# Вывод сообщения рекорда
-record_lab = Label(main_window, width=7, text='0\nRECORD')
-record_lab.grid(row=1, column=4, padx=10)
 
 def key_press(btn, _status=None):
     """ Основная логика перемещения на игровом поле.
@@ -38,47 +27,55 @@ def key_press(btn, _status=None):
 
     if btn == 'l' and curr.column > 0:
         # print('Вправо')
-        near = label_left(curr)
+        near = label_horizontal(curr)
         curr.column -= 1
         near.column += 1
     elif btn == 'r' and curr.column < SIDE - 1:
         # print('Влево')
-        near = label_right(curr)
+        near = label_horizontal(curr, True)
         curr.column += 1
         near.column -= 1
     elif btn == 'd' and curr.row < SIDE - 1:
         # print('Вверх')
-        near = label_under(curr)
+        near = label_vertical(curr, True)
         curr.row += 1
         near.row -= 1
     elif btn == 'u' and curr.row > 0:
         # print('Вниз')
-        near = label_above(curr)
+        near = label_vertical(curr)
         curr.row -= 1
         near.row += 1
 
     exchange(curr, near)
     grid_x(curr, near)
-    check_count(curr, _status)
-    check_done(curr, _status)
+    add_count(_status)
+    check_done()
 
-
-def check_count(curr, _status):
+def add_count(reset=None):
     """ Создаем счетчик и выводим информацию в окно
     """
-    global move_lab
-    if _status == None:
+    global move_lab, move_count
+    if reset == None:
         # Прибавляем к счетчику +1
-        curr.count += 1
-        move_lab['text']= '{}\nMOVE'.format(curr.count)
+        move_count += 1
+    else:
+        move_count = 0
+    move_lab['text']= '{}\nMOVE'.format(move_count)
 
+def add_record():
+    """ Добавляем числовой рекорд перемещений
+    """
+    global move_record
+    move_record = move_count # Запись рекорда
+    record_lab['text'] = '{}\nRecord'.format(move_record) # Вывод сообщения
+    add_count(False) # Сброс счетчика
 
-def check_done(curr, _status):
+def check_done():
     """
     Проверяем и выводим сообщение что мозаика сложена
     И скрываем ее (если выведена) при изменении
     """
-    global done_moz_alert, record
+    global done_moz_alert
     # Если состояние мозаики совпадает
     if done_moz == labels:
         # Проверяем на наличие сообщения DONE
@@ -86,34 +83,24 @@ def check_done(curr, _status):
             # Мозайка сложена - Выводим сообщение
             done_moz_alert = Label(main_window, text="DONE!", font=('Courier', 20), foreground="green")
             done_moz_alert.grid(row=3, column=3)
-            # Выводим кнопку для обновления картинки
-            # btn_change_img = Button(main_window, text="NEXT", fg="green", command=change_moz_image)
-            # btn_change_img.grid(row=3, column=4)
-
-            record = curr.count # Запись рекорда
-            curr.count = 0 # Сброс счетчика
-            record_lab['text'] = '{}\nRecord'.format(record)
+            # Сохраняем рекорд
+            add_record()
 
     else:
         if done_moz_alert: # Если сообщение выведено а мозаика не верно расставлена убираем
             done_moz_alert.destroy()
             done_moz_alert = None
-            #btn_change_img.destroy()
-
 
 def mix_up():
     """ Перемешивание клеток
-        SIDE ** 4 - взято для лучшего перемешивания,
-         т.к. не все вызовы функции нажатия кнопок
-         будут приводить клеток к движению на поле
     """
     buttons = ['d', 'u', 'l', 'r']
-    for i in range(SIDE ** 4):
-        x = choice(buttons)  # <- choice - функция из модуля random
-        key_press(x, 'false')
+    for _ in range(SIDE ** SIDE):
+        x = choice(buttons)
+        key_press(x, False)
 
     # После перешивания делаем сброс счетчика
-    curr.count = 0
+    add_count(False)
 
 def get_regions(image):
     """ Функция разбиения изображения на квадратики.
@@ -134,7 +121,6 @@ def get_regions(image):
             regions.append(ImageTk.PhotoImage(region))
     return regions
 
-
 def make_mosaik_from_filename(filename=''):
     """ Создание мозаики на основе имени файла с картинкой
         Возвращает список картинок-квадратиков ImageTk.PhotoImage
@@ -142,22 +128,9 @@ def make_mosaik_from_filename(filename=''):
     image = Image.open(filename)
     return get_regions(image)
 
-# список файлов в папке
-images_list = os.listdir('nums')
-num_files = [os.path.join('nums', _img_name) for _img_name in images_list]
-
-# Список объектов-картинок с числами:
-nums = [PhotoImage(file=f) for f in num_files]
-
-# Список картинок для мозаики
-images_list2 = os.listdir('img')
-list_files = [os.path.join('img', _img_name2) for _img_name2 in images_list2]
-
-# Создание списка картинок мозаики
-images = make_mosaik_from_filename(choice(list_files))
-images[-1] = nums[-1]
-
 def generation_image():
+    global labels, curr, done_moz
+    labels = []
     for i in range(SIDE):
         for j in range(SIDE):
             label = Label(main_window, image=images[i * SIDE + j])
@@ -169,36 +142,28 @@ def generation_image():
             label.count = 0
 
             labels.append(label)
+            # Забираем одну клетку (для курсора)
+            curr = labels[-1]
+            # Сохраняем растановку мозаики
+            done_moz = labels[:]
 
-generation_image()
-curr = labels[-1]
-
-# Сохраняем растановку мозаики
-done_moz = labels[:]
-
-def label_above(curr):
-    """ Вернуть соседа сверху
+def label_vertical(curr, up=None):
+    """ Вертикальное перемещение
     """
-    return labels[(curr.row - 1) * SIDE + curr.column]
+    if up == None:
+        row = curr.row - 1
+    else:
+        row = curr.row + 1
+    return labels[row * SIDE + curr.column]
 
-
-def label_under(curr):
-    """ Вернуть соседа снизу
+def label_horizontal(curr, left=None):
+    """ Горизонтальное перемещение
     """
-    return labels[(curr.row + 1) * SIDE + curr.column]
-
-
-def label_left(curr):
-    """ Вернуть соседа слева
-    """
-    return labels[curr.row * SIDE + curr.column - 1]
-
-
-def label_right(curr):
-    """ Вернуть соседа справа
-    """
-    return labels[curr.row * SIDE + curr.column + 1]
-
+    if left == None:
+        column = curr.column - 1
+    else:
+        column = curr.column + 1
+    return labels[curr.row * SIDE + column]
 
 def grid_x(curr, near):
     """ Отрисовка расположения двух клеток
@@ -206,7 +171,6 @@ def grid_x(curr, near):
     if near is not None:
         curr.grid(row=curr.row, column=curr.column)
         near.grid(row=near.row, column=near.column)
-
 
 def exchange(curr, near):
     """ Обмен местами клеток в общем списке
@@ -219,15 +183,45 @@ def exchange(curr, near):
 def change_moz_image():
     global images
     # Создание списка картинок мозаики
-    images = make_mosaik_from_filename(choice(list_files))
-    images[-1] = nums[-1]
+    images = make_mosaik_from_filename(choice(list_images))
+    images[-1] = cubs[-1]
     # Генерируем картинку в поле
-    #generation_image()
+    generation_image()
     # Перемешиваем
     mix_up()
 
-btn_change_img = Button(main_window, text="NEXT", fg="green", command=change_moz_image)
-btn_change_img.grid(row=3, column=4)
+# Создаем квадраты мозаики
+cubs_count = [os.path.join('assets/cursor.png') for i in range(SIDE ** SIDE)]
+cubs = [PhotoImage(file=f) for f in cubs_count]
+
+# Список картинок для мозаики
+list_files = os.listdir('img')
+list_images = [os.path.join('img', _img_name) for _img_name in list_files]
+
+# Вывод счетчика перемещений справа
+move_lab = Label(main_window, width=7, text='0\nMOVE')
+move_lab.grid(row=0, column=4, padx=10)
+
+# Вывод счетчика рекорда справа
+record_lab = Label(main_window, width=7, text='0\nRECORD')
+record_lab.grid(row=1, column=4, padx=10)
+
+# Кнопка перемешивания картинки
+reload_img=PhotoImage(file=os.path.join('assets/reload.png'))
+btn_reload_img = Button(main_window, image=reload_img, command=mix_up)
+btn_reload_img.grid(row=2, column=4)
+
+# Кнопка смены картинки
+btn_next_img = Button(
+    main_window,
+    text="NEXT",
+    command=change_moz_image,
+    fg="#ccc",
+    bg="#555",
+    padx="7",
+    pady="7",
+    font="16")
+btn_next_img.grid(row=3, column=4)
 
 # Нажатия стрелок на клавиатуре привызываем к главному окну:
 main_window.bind('<Right>', lambda e: key_press('r'))
@@ -235,8 +229,8 @@ main_window.bind('<Left>', lambda e: key_press('l'))
 main_window.bind('<Up>', lambda e: key_press('u'))
 main_window.bind('<Down>', lambda e: key_press('d'))
 
-mix_up()
+# Генерируем и перешиваем картинку
+change_moz_image()
 
-
-# Запуск главного цикла обработки сообщений графической оболочки:
+# Запуск графической оболочки:
 main_window.mainloop()
